@@ -152,6 +152,9 @@ def detect_exercise(angles, prev_exercise, angle_changes):
 def main():
     cap = cv2.VideoCapture(0)
 
+    # Track start time
+    start_time = time.time()
+
     with mp_pose.Pose(
         min_detection_confidence=0.5, min_tracking_confidence=0.5
     ) as pose:
@@ -192,12 +195,8 @@ def main():
             ),
         }
 
-        # Track angles for each major movement
         prev_angles = {"bicep_curl": 0, "squat_knee": 0, "pushup_elbow": 0}
         current_exercise = None
-
-        # Define a simple "ideal" angle range for squats (knee angle example)
-        # Tweak these min/max values to suit your preference
         SQUAT_IDEAL_RANGE = (80, 140)
 
         while cap.isOpened():
@@ -206,22 +205,15 @@ def main():
                 print("Ignoring empty camera frame.")
                 continue
 
-            # Recolor image to RGB
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
-
-            # Make detection
             results = pose.process(image)
-
-            # Recolor back to BGR
             image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
             try:
-                # If pose landmarks exist, extract them
                 landmarks = results.pose_landmarks.landmark
 
-                # Calculate angles for each exercise
                 angles = {
                     "bicep_curl": calculate_angle(
                         [
@@ -267,34 +259,23 @@ def main():
                     ),
                 }
 
-                # Calculate angle changes
                 angle_changes = {
                     "bicep_curl": angles["bicep_curl"] - prev_angles["bicep_curl"],
                     "squat_knee": angles["squat_knee"] - prev_angles["squat_knee"],
-                    "pushup_elbow": angles["pushup_elbow"]
-                    - prev_angles["pushup_elbow"],
+                    "pushup_elbow": angles["pushup_elbow"] - prev_angles["pushup_elbow"],
                 }
 
-                # Update previous angles
                 prev_angles = angles.copy()
 
-                # Detect current exercise based on angle changes
                 detected_exercise = detect_exercise(
-                    angles, current_exercise, angle_changes
-                )
-
+                    angles, current_exercise, angle_changes)
                 if detected_exercise:
                     current_exercise = detected_exercise
 
-                # If we have a valid current exercise, update reps, stages, etc.
                 if current_exercise:
                     angle = exercises[current_exercise].update(landmarks)
 
-                    # Convert the main angle landmarks to pixel coordinates
                     image_height, image_width, _ = image.shape
-
-                    # We’ll just re-use the a, b, c from the update() method logic
-                    # to draw text. Or recalculate them here:
                     ex = exercises[current_exercise]
                     a = [landmarks[ex.angle_points[0]].x,
                          landmarks[ex.angle_points[0]].y]
@@ -310,7 +291,6 @@ def main():
                     c_pixel = tuple(np.multiply(
                         c, [image_width, image_height]).astype(int))
 
-                    # Display the current angle near the 'middle' landmark
                     cv2.putText(
                         image,
                         str(int(angle)),
@@ -322,43 +302,15 @@ def main():
                         cv2.LINE_AA,
                     )
 
-                    # Render rep counter and stage box
                     cv2.rectangle(image, (0, 0), (300, 100),
                                   (245, 117, 16), -1)
+                    cv2.putText(image, "REPS", (10, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+                    cv2.putText(image, str(ex.counter), (10, 70),
+                                cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2)
 
-                    # Rep data
-                    cv2.putText(
-                        image,
-                        "REPS",
-                        (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 0, 0),
-                        2,
-                        cv2.LINE_AA,
-                    )
-                    cv2.putText(
-                        image,
-                        str(exercises[current_exercise].counter),
-                        (10, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        2,
-                        (255, 255, 255),
-                        2,
-                        cv2.LINE_AA,
-                    )
-
-                    # Stage data
-                    cv2.putText(
-                        image,
-                        "STAGE",
-                        (150, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 0, 0),
-                        2,
-                        cv2.LINE_AA,
-                    )
+                    cv2.putText(image, "STAGE", (150, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
                     cv2.putText(
                         image,
                         exercises[current_exercise].stage if exercises[current_exercise].stage else "",
@@ -367,10 +319,8 @@ def main():
                         2,
                         (255, 255, 255),
                         2,
-                        cv2.LINE_AA,
                     )
 
-                    # Display current exercise
                     cv2.putText(
                         image,
                         f"Exercise: {current_exercise}",
@@ -379,15 +329,10 @@ def main():
                         0.7,
                         (0, 255, 0),
                         2,
-                        cv2.LINE_AA,
                     )
 
-                    # ---------------------------
-                    #  SQUAT TECHNIQUE FEEDBACK
-                    # ---------------------------
                     if current_exercise == "Squat":
                         min_angle, max_angle = SQUAT_IDEAL_RANGE
-                        # Check if angle is outside the ideal range
                         if angle < min_angle:
                             cv2.putText(
                                 image,
@@ -397,7 +342,6 @@ def main():
                                 0.9,
                                 (0, 0, 255),
                                 2,
-                                cv2.LINE_AA,
                             )
                         elif angle > max_angle:
                             cv2.putText(
@@ -408,46 +352,41 @@ def main():
                                 0.9,
                                 (0, 0, 255),
                                 2,
-                                cv2.LINE_AA,
                             )
-                        # Else, optionally show a "Good form" message if you like:
-                        # else:
-                        #     cv2.putText(
-                        #         image,
-                        #         "Good form!",
-                        #         (50, image_height - 50),
-                        #         cv2.FONT_HERSHEY_SIMPLEX,
-                        #         0.9,
-                        #         (0, 255, 0),
-                        #         2,
-                        #         cv2.LINE_AA,
-                        #     )
 
             except AttributeError:
                 pass
 
-            # Draw the full pose annotation on the image
             mp_drawing.draw_landmarks(
                 image,
                 results.pose_landmarks,
                 mp_pose.POSE_CONNECTIONS,
                 mp_drawing.DrawingSpec(
-                    color=(245, 117, 66), thickness=2, circle_radius=2
-                ),
+                    color=(245, 117, 66), thickness=2, circle_radius=2),
                 mp_drawing.DrawingSpec(
-                    color=(245, 66, 230), thickness=2, circle_radius=2
-                ),
+                    color=(245, 66, 230), thickness=2, circle_radius=2),
             )
 
             cv2.imshow("Personal Trainer", image)
 
-            # Quit with 'q'
             key = cv2.waitKey(10) & 0xFF
             if key == ord("q"):
                 break
 
         cap.release()
         cv2.destroyAllWindows()
+
+        # Print session summary
+        end_time = time.time()
+        total_time = end_time - start_time
+        total_reps = sum(ex.counter for ex in exercises.values())
+
+        print("\n========== SESSION SUMMARY ==========")
+        print(f"🕒 Duration: {total_time:.2f} seconds")
+        for name, ex in exercises.items():
+            print(f"🏋️ {name} Reps: {ex.counter}")
+        print(f"✅ Total Reps: {total_reps}")
+        print("=====================================\n")
 
 
 if __name__ == "__main__":

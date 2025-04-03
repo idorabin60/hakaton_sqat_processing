@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 import os
-
+from .serializers import SquatAnalysisSerializer
 from .squat_analysis import analyze_squat_video
+from .models import SquatAnalysis
 
 
 class SquatAnalysisView(APIView):
@@ -28,3 +29,10 @@ class SquatAnalysisView(APIView):
             return Response(result, status=200)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+class AllSquatsView(APIView):
+    def get(self, request):
+        squats = SquatAnalysis.objects.all().order_by('rep')
+        serializer = SquatAnalysisSerializer(squats, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
