@@ -16,3 +16,10 @@ class SquatAnalysis(models.Model):
 
     def __str__(self):
         return f"Rep {self.rep} - Valid: {self.valid_depth}"
+# models.py
+
+
+class WorkoutVideo(models.Model):
+    title = models.CharField(max_length=100)
+    video = models.FileField(upload_to='videos/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)

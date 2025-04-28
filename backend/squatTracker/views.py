@@ -1,12 +1,14 @@
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import MultiPartParser, FormParser
+from .serializers import WorkoutVideoSerializer
+
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 import os
 from .serializers import SquatAnalysisSerializer
 from .squat_analysis import analyze_squat_video
-from .models import SquatAnalysis
+from .models import SquatAnalysis, WorkoutVideo
 
 
 class SquatAnalysisView(APIView):
@@ -33,6 +35,27 @@ class SquatAnalysisView(APIView):
 
 class AllSquatsView(APIView):
     def get(self, request):
-        squats = SquatAnalysis.objects.all().order_by('rep')
+        squats = SquatAnalysis.objects.all()
         serializer = SquatAnalysisSerializer(squats, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class VideoUploadView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        serializer = WorkoutVideoSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Upload successful'}, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class FirstWorkoutVideoView(APIView):
+    def get(self, request):
+        video = WorkoutVideo.objects.first()
+        if not video:
+            return Response({"detail": "No videos found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = WorkoutVideoSerializer(video)
         return Response(serializer.data, status=status.HTTP_200_OK)
